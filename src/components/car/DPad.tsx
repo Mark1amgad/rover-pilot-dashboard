@@ -23,7 +23,7 @@ export function DPad({ onMove, onRelease, onStop, active }: Props) {
     <div className="mx-auto grid w-fit grid-cols-3 gap-2 touch-none select-none">
       <span /><Btn m={Movement.Forward} label="Forward"><ArrowUp /></Btn><span />
       <Btn m={Movement.Left} label="Turn left"><ArrowLeft /></Btn>
-      <button type="button" aria-label="Stop" className="dpad-btn dpad-stop" onClick={onStop}><Square className="size-4" /></button>
+      <button type="button" aria-label="Stop" className="dpad-btn dpad-stop" onClick={onStop}><span className="flex flex-col items-center gap-0.5 text-[10px] font-bold tracking-wider"><Square className="size-4" />STOP</span></button>
       <Btn m={Movement.Right} label="Turn right"><ArrowRight /></Btn>
       <span /><Btn m={Movement.Backward} label="Backward"><ArrowDown /></Btn><span />
     </div>

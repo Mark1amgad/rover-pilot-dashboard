@@ -47,7 +47,7 @@ function Dashboard() {
         </header>
 
         <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
-          <section className="panel p-5 sm:p-7">
+          <section className="panel self-start p-5 sm:p-7">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="panel-title">Drive</h2>
               <span className="font-mono text-xs text-muted-foreground">
