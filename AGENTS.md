@@ -28,3 +28,7 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+- Car control is frontend-only: browser fetches ESP32 routes directly via `src/lib/car/esp32-client.ts`; no server proxy, because the car lives on its own local Wi-Fi AP.
+- Movement enum/route mapping lives in `src/lib/car/movement.ts`; command dispatch, dedupe and keepalive live in `src/hooks/useCarController.ts`.
