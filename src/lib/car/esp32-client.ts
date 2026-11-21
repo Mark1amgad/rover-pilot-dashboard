@@ -1,6 +1,6 @@
-/** Direct browser → ESP32 only. Join Electric-Car in OS Wi-Fi settings first.
- * Firmware has no CORS headers. no-cors cannot bypass mixed-content or local-network
- * restrictions, and an opaque response does NOT verify delivery or motor acceptance.
+/** Browser → ESP32 client. On the ESP32-hosted page, API calls are same-origin
+ * relative requests: no internet, CORS, mixed-content or cross-origin permission is needed.
+ * The cloud preview remains useful for UI review but may not control the local ESP32.
  */
 import { MOVEMENT_ROUTE, Movement } from "./movement";
 
@@ -26,7 +26,8 @@ export function speedRoute(value: number): string {
   return `/speed?v=${normalizeSpeed(value)}`;
 }
 
-export const NETWORK_GUIDANCE = "Join Electric-Car using password car12345 in OS Wi-Fi settings, then open http://192.168.4.1 directly to check the car. This hosted HTTPS controller may be unable to reach the local HTTP ESP32 because of mixed-content, private-network permissions, or CORS. no-cors does not bypass these restrictions. If the device page opens but this controller fails, use the ESP32's own HTTP page or serve this controller locally over HTTP; cross-origin replies may still remain unverified.";
+export const NETWORK_GUIDANCE =
+  "For reliable offline control, join Electric-Car (password car12345) and open http://192.168.4.1. The Lovable/Vercel preview is hosted on HTTPS and may be blocked from reaching the car's local HTTP address.";
 
 async function request(baseUrl: string, path: string, mode: RequestMode, command: boolean, signal?: AbortSignal): Promise<SendResult> {
   let url: URL;
@@ -36,6 +37,8 @@ async function request(baseUrl: string, path: string, mode: RequestMode, command
   } catch {
     return { kind: "error", code: "invalid-url", error: "Enter an HTTP or HTTPS device address, such as http://192.168.4.1." };
   }
+  const sameOrigin = typeof window !== "undefined" && url.origin === window.location.origin;
+  const target = sameOrigin ? path : url.toString();
   const ctrl = new AbortController();
   const onAbort = () => ctrl.abort("superseded");
   signal?.addEventListener("abort", onAbort, { once: true });
@@ -43,17 +46,26 @@ async function request(baseUrl: string, path: string, mode: RequestMode, command
   const timer = setTimeout(() => ctrl.abort("timeout"), REQUEST_TIMEOUT_MS);
   const start = performance.now();
   try {
-    const response = await fetch(url.toString(), { method: "GET", mode, cache: "no-store", credentials: "omit", redirect: "error", signal: ctrl.signal });
+    const response = await fetch(target, {
+      method: "GET",
+      mode: sameOrigin ? "same-origin" : mode,
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+      signal: ctrl.signal,
+    });
     if (response.type === "opaque") return { kind: "dispatched" };
     if (!response.ok) return { kind: "error", code: "http", error: `Device returned HTTP ${response.status}; check the address and firmware routes.` };
     if (command && (await response.text()).trim() !== "OK") {
-      return { kind: "error", code: "response", error: "The HTTP reply was not the firmware's expected OK. Check that the address belongs to your ESP32." };
+      return { kind: "error", code: "response", error: "The device did not return the expected OK response." };
     }
     return { kind: "verified", ms: Math.round(performance.now() - start) };
   } catch {
     if (ctrl.signal.reason === "superseded") return { kind: "error", code: "superseded", error: "superseded" };
-    if (ctrl.signal.reason === "timeout") return { kind: "error", code: "timeout", error: `Request timed out. ${NETWORK_GUIDANCE}` };
-    return { kind: "error", code: "network", error: `Browser blocked the request or the device is unreachable. ${NETWORK_GUIDANCE}` };
+    if (ctrl.signal.reason === "timeout") return { kind: "error", code: "timeout", error: "The ESP32 did not respond before the request timed out." };
+    return { kind: "error", code: "network", error: sameOrigin
+      ? "Cannot reach the ESP32 page. Check that you joined Electric-Car and that the firmware and LittleFS files are installed."
+      : `Browser blocked the cross-origin request or the device is unreachable. ${NETWORK_GUIDANCE}` };
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
@@ -66,9 +78,6 @@ export function sendMovement(baseUrl: string, movement: Movement, signal?: Abort
 export function sendSpeed(baseUrl: string, value: number, signal?: AbortSignal): Promise<SendResult> {
   return request(baseUrl, speedRoute(value), "no-cors", true, signal);
 }
-/** Only GET / tests the connection. A CORS-readable response is verified HTTP,
- * not proof of device identity. On CORS failure, an opaque probe stays unverified.
- */
 export async function probeConnection(baseUrl: string, signal?: AbortSignal): Promise<SendResult> {
   const result = await request(baseUrl, "/", "cors", false, signal);
   if (result.kind === "error" && result.code === "network") return request(baseUrl, "/", "no-cors", false, signal);
