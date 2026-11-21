@@ -1,0 +1,43 @@
+name: Build offline ESP32 dashboard
+
+on:
+  push:
+    branches: [main, feature/esp32-offline-control]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bun run build
+      - name: Package gzip files for ESP32 LittleFS
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .output/public/index.html || (echo "Expected .output/public/index.html; inspect TanStack Start build output." && find .output -maxdepth 4 -type f | head -100 && exit 1)
+          rm -rf firmware/data
+          mkdir -p firmware/data
+          cp -R .output/public/. firmware/data/
+          while IFS= read -r -d '' file; do
+            gzip -n -9 -c "$file" > "$file.gz"
+            rm "$file"
+          done < <(find firmware/data -type f ! -name '*.gz' -print0)
+          echo "Compressed LittleFS payload:"
+          du -sh firmware/data
+          find firmware/data -type f | sort
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32-littlefs-data
+          path: firmware/data/
+          if-no-files-found: error
+          retention-days: 14
