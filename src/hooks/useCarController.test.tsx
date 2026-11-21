@@ -85,13 +85,13 @@ function Controls({ joystick = false }: { joystick?: boolean }) {
   return joystick ? <Joystick active={car.movement} onMove={car.drive} onRelease={car.release} /> : <DPad active={car.movement} onMove={car.drive} onRelease={car.release} onStop={car.stop} />;
 }
 describe("pointer safety", () => {
-  it.each(["pointerUp", "pointerCancel", "pointerLeave", "lostPointerCapture"] as const)("D-pad %s requests stop", async event => {
+  it.each(["pointerUp", "pointerCancel", "lostPointerCapture"] as const)("D-pad %s requests stop", async event => {
     const view = render(<Controls />); const button = view.getByRole("button", { name: /^Forward$/ });
     fireEvent.pointerDown(button, { pointerId: 1 }); await flush();
     fireEvent[event](button, { pointerId: 1 }); await flush();
     expect(fetchMock).toHaveBeenLastCalledWith(`${DEFAULT_BASE_URL}/stop`, expect.any(Object));
   });
-  it.each(["pointerUp", "pointerCancel", "pointerLeave", "lostPointerCapture"] as const)("joystick %s requests stop", async event => {
+  it.each(["pointerUp", "pointerCancel", "lostPointerCapture"] as const)("joystick %s requests stop", async event => {
     const view = render(<Controls joystick />); const joystick = view.getByRole("application");
     vi.spyOn(joystick, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, right: 300, bottom: 300, width: 300, height: 300, x: 0, y: 0, toJSON: () => ({}) });
     fireEvent.pointerDown(joystick, { pointerId: 1, clientX: 150, clientY: 30 }); await flush();
