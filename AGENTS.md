@@ -32,3 +32,6 @@ use the editor.
 ## Project rules
 - Car control is frontend-only: browser fetches ESP32 routes directly via `src/lib/car/esp32-client.ts`; no server proxy, because the car lives on its own local Wi-Fi AP.
 - Movement enum/route mapping lives in `src/lib/car/movement.ts`; command dispatch, dedupe and keepalive live in `src/hooks/useCarController.ts`.
+- Keep firmware constants, speed normalization and response classification in the browser API client; opaque replies must remain unverified because the browser cannot inspect firmware acceptance.
+- Debounce speed independently from movement, cancel pending speed on stop, and guard request ownership so superseded replies cannot overwrite the latest control state.
+- Keep D-pad direction buttons as stable module-level components and stop on captured-pointer boundary exits so re-renders and pointer capture cannot strand held movement.

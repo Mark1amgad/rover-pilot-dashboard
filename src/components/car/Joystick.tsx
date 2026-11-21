@@ -36,9 +36,19 @@ export function Joystick({ onMove, onRelease, active }: Props) {
       aria-label="Drive joystick"
       className="joystick-track relative mx-auto aspect-square w-full max-w-[300px] touch-none select-none rounded-full"
       onPointerDown={(e) => { dragging.current = true; e.currentTarget.setPointerCapture(e.pointerId); update(e.clientX, e.clientY); }}
-      onPointerMove={(e) => dragging.current && update(e.clientX, e.clientY)}
+      onPointerMove={(e) => {
+        if (!dragging.current) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+          end();
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+          return;
+        }
+        update(e.clientX, e.clientY);
+      }}
       onPointerUp={end}
       onPointerCancel={end}
+      onPointerLeave={end}
       onLostPointerCapture={end}
     >
       <div className="absolute inset-[18%] rounded-full border border-border/60" />

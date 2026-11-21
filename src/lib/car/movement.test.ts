@@ -7,5 +7,5 @@ describe("joystick mapping", () => {
   it("down is backward", () => expect(vectorToMovement(0, 0.9)).toBe(Movement.Backward));
   it("diagonal picks dominant axis", () => expect(vectorToMovement(0.8, -0.5)).toBe(Movement.Right));
   it("routes match firmware", () =>
-    expect(Object.values(MOVEMENT_ROUTE).sort()).toEqual(["/B", "/F", "/L", "/R", "/S"]));
+    expect(MOVEMENT_ROUTE).toEqual({ F: "/forward", B: "/backward", L: "/left", R: "/right", S: "/stop" }));
 });

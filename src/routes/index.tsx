@@ -5,6 +5,8 @@ import { useCarController, type ConnStatus } from "@/hooks/useCarController";
 import { Joystick } from "@/components/car/Joystick";
 import { DPad } from "@/components/car/DPad";
 import { MOVEMENT_LABEL, MOVEMENT_ROUTE, Movement } from "@/lib/car/movement";
+import { NETWORK_GUIDANCE, WIFI_SSID, WIFI_PASSWORD } from "@/lib/car/esp32-client";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,8 +25,9 @@ export const Route = createFileRoute("/")({
 const STATUS: Record<ConnStatus, { label: string; cls: string }> = {
   disconnected: { label: "Disconnected", cls: "badge-off" },
   checking: { label: "Checking…", cls: "badge-wait" },
-  connected: { label: "Connected", cls: "badge-on" },
-  error: { label: "Unreachable", cls: "badge-err" },
+  verified: { label: "HTTP verified", cls: "badge-on" },
+  dispatched: { label: "Dispatched · unverified", cls: "badge-wait" },
+  error: { label: "Blocked / unreachable", cls: "badge-err" },
 };
 
 function Dashboard() {
@@ -61,10 +64,10 @@ function Dashboard() {
                 <DPad onMove={car.drive} onRelease={car.release} onStop={car.stop} active={car.movement} />
               </div>
             </div>
-            <button type="button" onClick={car.stop} className="estop mt-7 w-full">
+            <Button type="button" onClick={car.stop} className="estop mt-7 w-full whitespace-normal text-center">
               <OctagonX className="size-6" /> EMERGENCY STOP
-            </button>
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">Software stop — sends <code>/S</code>. Not a physical power cutoff.</p>
+            </Button>
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">Software stop — requests <code>/stop</code>. Not a physical power cutoff.</p>
           </section>
 
           <aside className="space-y-5">
@@ -73,10 +76,13 @@ function Dashboard() {
               <dl className="space-y-3 text-sm">
                 <Row k="Link" v={st.label} />
                 <Row k="Movement" v={MOVEMENT_LABEL[car.movement]} accent={car.movement !== Movement.Stop} />
-                <Row k="Last acknowledged" v={car.lastSent ? MOVEMENT_ROUTE[car.lastSent] : "—"} />
-                <Row k="Round trip" v={car.latency != null && car.status === "connected" ? `${car.latency} ms` : "—"} />
+                <Row k="Last request" v={car.lastRequest ?? "—"} />
+                <Row k="Last verified reply" v={car.lastVerified ?? "—"} />
+                <Row k="Verified round trip" v={car.latency != null && car.status === "verified" ? `${car.latency} ms` : "—"} />
               </dl>
               {car.lastError && <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">{car.lastError}</p>}
+              {car.status === "dispatched" && <p className="mt-3 text-xs text-warning">Request dispatched with an opaque reply; delivery and firmware acceptance are not verified. {NETWORK_GUIDANCE}</p>}
+              {car.status === "verified" && <p className="mt-3 text-xs text-muted-foreground">Readable HTTP response received. This does not verify device identity or physical motor movement.</p>}
             </section>
 
             <section className="panel p-5">
@@ -88,30 +94,33 @@ function Dashboard() {
                   value={draft ?? car.baseUrl}
                   onChange={(e) => setDraft(e.target.value)}
                 />
-                <button className="btn-primary" type="submit" disabled={car.status === "checking"}>
+                <Button className="btn-primary" type="submit" disabled={car.status === "checking"}>
                   {car.status === "checking" ? <Loader2 className="size-4 animate-spin" /> : <Radio className="size-4" />} Test
-                </button>
+                </Button>
               </form>
               <p className="mt-3 flex gap-2 text-xs text-muted-foreground">
                 <Wifi className="mt-0.5 size-3.5 shrink-0" />
-                <span>Join Wi-Fi <b className="text-foreground">ESP32-Motors</b> (password <code>12345678</code>) first. Browsers may block an HTTPS page from reaching a local HTTP device; if tests fail, that may be why. Test sends a harmless <code>/S</code>.</span>
+                <span>Connect your phone/laptop to <b className="text-foreground">{WIFI_SSID}</b> using password <code>{WIFI_PASSWORD}</code> in OS Wi-Fi settings BEFORE opening or connecting the controller site. The website cannot join Wi-Fi for you. Test requests <code>GET /</code>, the ESP32 device page.</span>
               </p>
+              <p className="mt-3 text-xs text-muted-foreground">HTTPS-to-HTTP requests may be blocked by mixed-content or private-network restrictions. Firmware has no CORS headers; no-cors cannot bypass browser restrictions.</p>
+              <a href={car.baseUrl.startsWith("http") ? car.baseUrl : `http://${car.baseUrl}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs text-primary underline">Open ESP32 device page</a>
             </section>
 
-            <section className="panel p-5 opacity-80">
+            <section className="panel p-5">
               <div className="flex items-center justify-between">
                 <h2 className="panel-title flex items-center gap-2"><Gauge className="size-4" />Speed control</h2>
-                <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">Coming soon</span>
+                <output className="font-mono text-sm text-primary" htmlFor="motor-speed">{car.speed} / 255</output>
               </div>
-              <input type="range" disabled aria-label="Speed (disabled)" className="mt-4 w-full cursor-not-allowed opacity-40" />
-              <p className="mt-2 text-xs text-muted-foreground">Firmware has no PWM yet — motors run at full speed. This slider does nothing.</p>
+              <input id="motor-speed" type="range" min={0} max={255} step={1} value={car.speed} onChange={(e) => car.setSpeed(Number(e.target.value))} aria-label="Motor speed" className="mt-4 w-full accent-primary" />
+              <div className="mt-1 flex justify-between font-mono text-[11px] text-muted-foreground"><span>0</span><span>255</span></div>
+              <p className="mt-2 text-xs text-muted-foreground">Selected PWM: {car.speed}. Default 180. Changes request <code>/speed?v={car.speed}</code>; an opaque reply cannot confirm the applied speed.</p>
             </section>
           </aside>
         </div>
 
         <section className="grid gap-3 md:grid-cols-2">
           <Note icon={<Info className="size-4" />} title="Hardware limits">One L298N: channel A drives both right motors, channel B both left. Forward, reverse and differential turns only — no strafe or diagonal moves.</Note>
-          <Note icon={<AlertTriangle className="size-4" />} title="Safety">Releasing controls, leaving the tab or losing focus sends <code>/S</code>, but dropped Wi-Fi can't be caught here. Add a firmware timeout that stops motors if no command arrives.</Note>
+          <Note icon={<AlertTriangle className="size-4" />} title="Safety">Releasing or leaving controls, leaving the tab or losing focus requests <code>/stop</code>. Blocked requests or dropped Wi-Fi can prevent stopping; keep a physical power cutoff within reach.</Note>
         </section>
       </div>
     </main>
@@ -119,7 +128,7 @@ function Dashboard() {
 }
 
 function Row({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
-  return <div className="flex justify-between border-b border-border/50 pb-2 last:border-0"><dt className="text-muted-foreground">{k}</dt><dd className={`font-mono ${accent ? "text-primary" : ""}`}>{v}</dd></div>;
+  return <div className="flex justify-between gap-3 border-b border-border/50 pb-2 last:border-0"><dt className="text-muted-foreground">{k}</dt><dd className={`min-w-0 break-words text-right font-mono ${accent ? "text-primary" : ""}`}>{v}</dd></div>;
 }
 function Note({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return <div className="panel flex gap-3 p-4 text-xs text-muted-foreground"><span className="text-primary">{icon}</span><div><p className="mb-1 font-semibold text-foreground">{title}</p>{children}</div></div>;

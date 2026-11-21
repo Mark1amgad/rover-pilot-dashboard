@@ -2,7 +2,7 @@
  * Movement commands supported by the EXISTING ESP32 firmware.
  * Hardware: one L298N — Channel A drives both right motors, Channel B both left motors.
  * So only forward / backward / differential turns exist. No strafe, no diagonals.
- * No PWM speed control exists in firmware yet, so no speed parameter is ever sent.
+ * PWM enable GPIO25/26 supports 8-bit speed; direction pins are GPIO16–19.
  */
 export enum Movement {
   Forward = "F",
@@ -13,11 +13,11 @@ export enum Movement {
 }
 
 export const MOVEMENT_ROUTE: Record<Movement, string> = {
-  [Movement.Forward]: "/F",
-  [Movement.Backward]: "/B",
-  [Movement.Left]: "/L",
-  [Movement.Right]: "/R",
-  [Movement.Stop]: "/S",
+  [Movement.Forward]: "/forward",
+  [Movement.Backward]: "/backward",
+  [Movement.Left]: "/left",
+  [Movement.Right]: "/right",
+  [Movement.Stop]: "/stop",
 };
 
 export const MOVEMENT_LABEL: Record<Movement, string> = {
