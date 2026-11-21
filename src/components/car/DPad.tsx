@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Square } from "lucide-react";
 import type { ReactNode } from "react";
 import { Movement } from "@/lib/car/movement";
@@ -5,26 +6,31 @@ import { Button } from "@/components/ui/button";
 
 interface Props { onMove: (m: Movement) => void; onRelease: () => void; onStop: () => void; active: Movement }
 
-/** Press-and-hold buttons; keepalive repeat is handled by the controller hook. */
+/** Press-and-hold buttons. Pointer capture keeps the press active outside the button bounds. */
 function DirectionButton({ m, children, label, onMove, onRelease, active }: Omit<Props, "onStop"> & { m: Movement; children: ReactNode; label: string }) {
+  const pressed = useRef(false);
+  const finish = () => {
+    if (!pressed.current) return;
+    pressed.current = false;
+    onRelease();
+  };
+
   return (
     <Button
       type="button"
       aria-label={label}
       data-active={active === m}
-      className="dpad-btn"
-      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); onMove(m); }}
-      onPointerMove={(e) => {
-        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-        const rect = e.currentTarget.getBoundingClientRect();
-        if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
-          e.currentTarget.releasePointerCapture(e.pointerId); onRelease();
-        }
+      className="dpad-btn touch-none select-none"
+      onPointerDown={(e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        e.preventDefault();
+        pressed.current = true;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        onMove(m);
       }}
-      onPointerUp={onRelease}
-      onPointerCancel={onRelease}
-      onPointerLeave={onRelease}
-      onLostPointerCapture={onRelease}
+      onPointerUp={finish}
+      onPointerCancel={finish}
+      onLostPointerCapture={finish}
       onContextMenu={(e) => e.preventDefault()}
     >{children}</Button>
   );
