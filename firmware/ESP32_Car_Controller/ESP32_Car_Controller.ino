@@ -88,7 +88,7 @@ String contentTypeFor(const String& path) {
 
 bool serveGzipFile(String path) {
   if (path == "/") path = "/index.html";
-  if (path.indexOf("..") >= 0 || path.indexOf('\\\\') >= 0) return false;
+  if (path.indexOf("..") >= 0 || path.indexOf('\\') >= 0) return false;
 
   File file = LittleFS.open(path + ".gz", "r");
   if (!file || file.isDirectory()) return false;
