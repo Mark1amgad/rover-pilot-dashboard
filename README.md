@@ -1,58 +1,33 @@
 # Rover Pilot Dashboard
 
-Build a polished, temporary standalone web app named "Smart Car Controller" for Mark's ESP32 smart car. This is a frontend-first control dashboard. Do NOT add Supabase, authentication, database, cloud backend, Edge Functions, or any server-side motor logic. Do NOT embed the website in Arduino firmware. The ESP32 is the existing HTTP backend and runs its own Wi-Fi access point.
+Smart Car Controller for the ESP32 vehicle. The project has two ways to view the UI:
 
-REAL HARDWARE / EXISTING FIRMWARE CONTRACT:
-- ESP32 Wi-Fi AP SSID: ESP32-Motors
-- Password: 12345678
-- ESP32 local address: http://192.168.4.1
-- Existing WebServer HTTP GET routes: /F (forward), /B (backward), /L (turn left), /R (turn right), /S (stop).
-- Physical motor driver: one L298N. Channel A controls BOTH right-side motors together; Channel B controls BOTH left-side motors together. No independent wheel control, no true mecanum strafing/diagonal movement.
-- Existing firmware has only digital direction control on GPIO 16,17,18,19. No PWM speed control has been implemented. Do NOT send a speed parameter or imply that the speed slider changes physical speed. Include a clearly disabled "Speed control — Coming soon" UI element or disabled slider, with an honest note that hardware PWM support is not yet implemented.
-- The frontend must communicate directly with the ESP32 over HTTP using fetch to the routes above. Make the ESP32 base URL configurable in a small connection/settings area, defaulting to http://192.168.4.1. Do not proxy through Lovable.
-- The deployed Lovable preview/hosted site may not be able to reach the ESP32 AP due to browser mixed-content, CORS, or origin/network restrictions. Architect the API client cleanly, show connection errors honestly, and provide a clear note that the phone must join the ESP32-Motors Wi-Fi network. Do not fake a connected state.
+- **Hosted preview:** for development and design review. A browser may block a hosted HTTPS page from controlling a local HTTP ESP32.
+- **Offline vehicle dashboard:** the ESP32 serves the same built UI from LittleFS at `http://192.168.4.1`. This is the intended control URL and works without internet after firmware and filesystem are flashed.
 
-DESIGN:
-Create a premium, modern robotics control dashboard, dark navy/graphite background, subtle blue/cyan accents, crisp typography, restrained glow, polished cards, excellent spacing, responsive mobile-first layout. It should look like a real robotics product, not a generic admin template. Use Lucide icons where useful. Dashboard title "SMART CAR" with small "ESP32 VEHICLE CONTROL" subtitle. Add connection status badge (Disconnected until a real health/request check succeeds), current movement state, and compact connection panel.
+## Latest ESP32 contract
 
-CONTROL UI:
-1. Large touch-friendly analog joystick with circular track and draggable thumb, supporting pointer/touch and mouse. Center is STOP. Four cardinal directions only. For diagonal thumb positions, choose the dominant axis only (do not pretend mecanum diagonal movement exists). Map top=F, bottom=B, left=L, right=R. Add dead zone. On release, pointer cancel, window blur, visibility hidden, or component unmount, send /S and reset joystick.
-2. Include a secondary D-pad with press-and-hold buttons for F/B/L/R. On pointer down send selected route; repeat command periodically while held to keep firmware alive; on release/cancel send /S. Avoid duplicate requests flooding.
-3. Dedicated STOP button and a visually prominent emergency stop button. Both call /S. Clearly label this as software stop, not a physical power cutoff.
-4. Speed control card disabled/Coming Soon; never claim speed adjustment currently works.
-5. Status card should show only truthful information available: connection, selected command/movement. Do not fabricate battery %, RPM, speed, distance, sensor readings, or telemetry.
-6. Provide a brief hardware limitation notice: current two-channel paired-side wiring supports forward/reverse and differential turning only, not true mecanum strafe/diagonal.
-7. Add a connection test action that performs a real request to the configured base URL (use /S as harmless stop/check, or use a HEAD/root check if appropriate); update badge based on actual result. Handle fetch timeout and errors.
-8. Safety: on any release or loss of control focus send /S; implement client-side request timeout and do not queue stale movement commands. Explain that firmware-side failsafe is still recommended; don't claim the website's stop is a physical safety system.
+- Wi-Fi AP: `Electric-Car` / `car12345`
+- Dashboard: `http://192.168.4.1`
+- Routes: `/forward`, `/backward`, `/left`, `/right`, `/stop`, `/speed?v=0..255`
+- Direction pins GPIO16–19; PWM enable GPIO25/26; 1 kHz, 8-bit; default speed 180.
+- One L298N pairs both right motors on channel A and both left motors on channel B. No true Mecanum strafe or diagonal motion.
 
-TECH:
-- Use React + TypeScript + Tailwind and existing Lovable default component setup.
-- Keep API logic isolated in a typed service module, movement enum/route mapping, and hooks/components separated.
-- Avoid unnecessary dependencies. No external backend.
-- Include an initial clean dashboard view on mobile and desktop.
-- Ensure app builds without TypeScript errors.
-- Add comments explaining ESP32 local-network requirement and current no-PWM limitation.
-- Do not ask me questions; implement the first usable version now.
-
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://rover-pilot-dashboard.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/4044b48f-8f29-4286-810f-e04bf36bd9ef).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+## Build and run locally
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+bun install
+bun run dev
+bun run test
+bun run build
 ```
+
+## Build for offline ESP32
+
+Push to `main` or run the GitHub Actions workflow **Build offline ESP32 dashboard**. Download the `esp32-littlefs-data` artifact from the successful workflow run and follow [firmware/README.md](firmware/README.md) to upload it to LittleFS and flash the sketch.
+
+The build uses a static SPA shell and relative asset paths so it can be served from the ESP32 root. The ESP32 firmware serves UI and control routes on the same origin, avoiding cross-origin browser restrictions.
+
+## Safety
+
+The firmware sketch includes a 500 ms movement watchdog and the UI sends STOP on release/focus loss. Neither is a physical emergency cutoff. Test with wheels raised and keep a physical power disconnect accessible.
