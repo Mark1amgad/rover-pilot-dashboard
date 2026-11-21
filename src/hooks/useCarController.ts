@@ -4,12 +4,20 @@ import { Movement, MOVEMENT_ROUTE } from "@/lib/car/movement";
 
 export type ConnStatus = "disconnected" | "checking" | "verified" | "dispatched" | "error";
 const KEEPALIVE_MS = 300;
+
+function isEsp32Hosted(): boolean {
+  return typeof window !== "undefined" && window.location.hostname === "192.168.4.1";
+}
+function initialBaseUrl(): string {
+  return isEsp32Hosted() ? window.location.origin : DEFAULT_BASE_URL;
+}
+
 export function statusForResult(result: SendResult): Exclude<ConnStatus, "disconnected" | "checking"> {
   return result.kind === "error" ? "error" : result.kind;
 }
 
 export function useCarController() {
-  const [baseUrl, setBaseUrlState] = useState(DEFAULT_BASE_URL);
+  const [baseUrl, setBaseUrlState] = useState(initialBaseUrl);
   const [status, setStatus] = useState<ConnStatus>("disconnected");
   const [lastError, setLastError] = useState<string | null>(null);
   const [latency, setLatency] = useState<number | null>(null);
@@ -27,6 +35,14 @@ export function useCarController() {
   const generation = useRef(0);
 
   useEffect(() => {
+    // The ESP32-hosted page must always call its own origin. Ignore any stale
+    // cloud-preview URL previously saved in localStorage on this device.
+    if (isEsp32Hosted()) {
+      const localOrigin = window.location.origin;
+      baseRef.current = localOrigin;
+      setBaseUrlState(localOrigin);
+      return;
+    }
     try {
       const saved = localStorage.getItem("esp32-base-url");
       if (saved) { setBaseUrlState(saved); baseRef.current = saved; }
@@ -103,7 +119,9 @@ export function useCarController() {
   }, [cancelSpeed, report]);
 
   const setBaseUrl = useCallback((url: string) => {
-    // Stop the old device before switching the destination.
+    // Never allow a stale or manually entered cloud URL to override the ESP32
+    // origin while the dashboard itself is being served by the car.
+    const destination = isEsp32Hosted() ? window.location.origin : url;
     const wasMoving = currentRef.current !== Movement.Stop;
     if (wasMoving) void stop();
     stopKeepalive();
@@ -112,9 +130,11 @@ export function useCarController() {
     inflight.current = null;
     probeInflight.current?.abort();
     generation.current += 1;
-    baseRef.current = url;
-    setBaseUrlState(url);
-    try { localStorage.setItem("esp32-base-url", url); } catch { /* Optional. */ }
+    baseRef.current = destination;
+    setBaseUrlState(destination);
+    if (!isEsp32Hosted()) {
+      try { localStorage.setItem("esp32-base-url", destination); } catch { /* Optional. */ }
+    }
     setStatus("disconnected"); setLastError(null); setLatency(null);
     setLastRequest(null); setLastVerified(null);
   }, [stop, stopKeepalive, cancelSpeed]);
